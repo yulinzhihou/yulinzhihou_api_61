@@ -1,5 +1,6 @@
 <?php
 
+use Phinx\Db\Adapter\MysqlAdapter;
 use think\migration\Migrator;
 use think\migration\db\Column;
 
@@ -39,7 +40,7 @@ class SystemConfigCreate extends Migrator
             ->addColumn('content','text',['limit'=>16777215,'default'=>null,'null'=>true,'comment'=>'字典数据'])
             ->addColumn('rule','string',['limit'=>128,'default'=>'','null'=>false,'comment'=>'验证规则'])
             ->addColumn('extend','string',['limit'=>255,'default'=>'','null'=>false,'comment'=>'扩展属性'])
-            ->addColumn('allow_del','integer',['limit'=>\Phinx\Db\Adapter\MysqlAdapter::INT_TINY,'signed'=>false,'default'=>0,'null'=>false,'comment'=>'允许删除:0=否,1=是'])
+            ->addColumn('allow_del','integer',['limit'=>MysqlAdapter::INT_TINY,'signed'=>false,'default'=>0,'null'=>false,'comment'=>'允许删除:0=否,1=是'])
             ->addColumn('weigh','integer',['limit'=>10,'signed'=>false,'default'=>0,'null'=>false,'comment'=>'权重'])
             ->addColumn('create_time','integer',['limit'=>10,'signed'=>false,'default'=>0,'null'=>false,'comment'=>'创建时间'])
             ->addColumn('update_time','integer',['limit'=>10,'signed'=>false,'default'=>0,'null'=>false,'comment'=>'更新时间'])

@@ -6,29 +6,31 @@ namespace app\admin\model;
 use app\admin\model\Base;
 
 /**
- * 访问日志模型
  * @mixin \think\Model
  */
 class ApiLog extends Base
 {
-    protected $schema = [
-        "id"	    =>	"int",
-        "admin_id"	=>	"int",
-        "user_agent"=>	"string",
-        "admin_name"=>	"string",
-        "version"   =>	"string",
-        "method"    =>	"string",
-        "code"	    =>	"string",
-        "title"	    =>	"string",
-        "url"	    =>	"string",
-        "params"	=>	"string",
-        "result"	=>	"string",
-        "sql"	    =>	"string",
-        "controller"=>	"string",
-        "action"	=>	"string",
-        "ip"	    =>	"string",
-        "waste_time"	=>	"float",
-        "create_time"	=>	"int",
-        "update_time"	=>	"int",
+     protected $schema = [
+		'id'	=>	'int',
+		'admin_id'	=>	'int',
+		'admin_name'	=>	'varchar',
+		'user_agent'	=>	'varchar',
+		'app_name'	=>	'varchar',
+		'method'	=>	'varchar',
+		'version'	=>	'varchar',
+		'controller'	=>	'varchar',
+		'action'	=>	'varchar',
+		'url'	=>	'mediumtext',
+		'params'	=>	'mediumtext',
+		'title'	=>	'varchar',
+		'code'	=>	'int',
+		'result'	=>	'mediumtext',
+		'sql'	=>	'mediumtext',
+		'ip'	=>	'varchar',
+		'waste_time'	=>	'decimal',
+		'data_create_time'	=>	'datetime',
+		'create_time'	=>	'int',
+		'update_time'	=>	'int',
+
     ];
 }
