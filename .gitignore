@@ -1,0 +1,10 @@
+/.idea
+/.vscode
+/vendor
+*.log
+.env
+.DS_Store
+public/storage
+/certs
+public/gs
+runtime/*

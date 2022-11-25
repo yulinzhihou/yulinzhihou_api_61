@@ -1,0 +1,16 @@
+<?php
+declare (strict_types = 1);
+
+namespace {%namespace%};
+
+use {%modelNamespace%}\Base;
+
+/**
+ * @mixin \think\Model
+ */
+class {%className%} extends Base
+{
+     protected $schema = [
+{%schema%}
+    ];
+}
