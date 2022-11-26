@@ -4,6 +4,10 @@ use think\facade\Route;
 
 return [
     Route::group('v1', function () {
+
+        Route::group('index',function (){
+            Route::get('index', 'Index@index');
+        });
         /*后台登录接口*/
         Route::group('login', function () {
             Route::get('index', 'Login@index');

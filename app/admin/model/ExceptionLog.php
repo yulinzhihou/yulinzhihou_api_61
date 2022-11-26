@@ -11,24 +11,66 @@ use app\admin\model\Base;
 class ExceptionLog extends Base
 {
      protected $schema = [
-		'id'	=>	'int',
-		'admin_id'	=>	'int',
+		'id'	        =>	'int',
+		'admin_id'	    =>	'int',
 		'admin_name'	=>	'varchar',
-		'app_name'	=>	'varchar',
-		'url'	=>	'mediumtext',
-		'ip'	=>	'varchar',
+		'app_name'	    =>	'varchar',
+		'url'	        =>	'mediumtext',
+		'ip'	        =>	'varchar',
 		'user_agent'	=>	'varchar',
-		'params'	=>	'mediumtext',
-		'class'	=>	'varchar',
-		'action'	=>	'varchar',
-		'type'	=>	'varchar',
-		'error_file'	=>	'varchar',
+		'params'	    =>	'mediumtext',
+		'class'	        =>	'varchar',
+		'action'	    =>	'varchar',
+		'type'	        =>	'varchar',
+		'error_file'	    =>	'varchar',
 		'error_line'	=>	'int',
-		'message'	=>	'mediumtext',
-		'sql'	=>	'mediumtext',
+		'message'	    =>	'mediumtext',
+		'sql'	        =>	'mediumtext',
 		'data_create_time'	=>	'datetime',
 		'create_time'	=>	'int',
 		'update_time'	=>	'int',
 
     ];
+
+
+    /**
+     * 构建数据
+     * @param \Exception $e 异常类
+     * @param int $errorLine 报错文件行号
+     * @param string $errorFile 报错文件名
+     * @param string $class     报错文件类名
+     * @param string $action    报错文件方法名
+     * @param string $type      报错文件类型
+     * @param string $sql       报错文件执行的最后一条sql
+     * @param array $adminInfo  管理员数组
+     */
+    public static function buildExceptionData(
+        \Exception $e,
+        int $errorLine,
+        string $errorFile,
+        string $class,
+        string $action,
+        string $type,
+        string $sql,
+        array $adminInfo = []
+    ):void {
+        $data = [
+            'line'      => $e->getLine(),
+            'file'       => $e->getFile(),
+            'message'   => $e->getMessage(),
+            'code'      => $e->getCode(),
+            'url'       => request()->url(true),
+            'params'    => json_encode(request()->param()),
+            'error_line'    => $errorLine,
+            'error_file'     => $errorFile,
+            'class'         => $class,
+            'action'        => $action,
+            'type'          => $type,
+            'sql'           => $sql,
+            'admin_id'      => $adminInfo['id']??0,
+            'admin_name'    => $adminInfo['nickname']??'未登录用户'
+        ];
+
+        self::create($data);
+    }
 }

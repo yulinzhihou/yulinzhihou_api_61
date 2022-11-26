@@ -1,14 +1,11 @@
 <?php
 // 应用公共文件
 
-/**
- * 分类树形结构方法，需要有id 与 pid 的上下级对应关系
- */
 if (!function_exists('tree')) {
     /**
      * 以pid——id对应，生成树形结构
      * @param array $array
-     * @return array|bool
+     * @return array
      */
     function tree(array $array):array
     {
@@ -33,28 +30,34 @@ if (!function_exists('tree')) {
     }
 }
 
-/**
- * 判断数据是否为空
- * @param $arr array 要检查的数组
- * @param $field string 判断的字段名
- * @param $type int 判断的类型. 1=存在+空+空字符
- * @return bool 验证通过返回true,否则为false
- */
-if (!function_exists('isVarExists')) {
-    function isVarExists(array $arr,string $filed,int $type = 1):bool {
-        switch ($type) {
-            // 验证数组存在值，并且不能为空字符串，不能为空数组
-            case 1:
-                return isset($arr[$filed]) && !empty($arr[$filed]) && $arr[$filed] != '';
-            case 2:
-                return isset($arr[$filed]) && !empty($arr[$filed]);
-            case 3:
-                return isset($arr[$filed]) && $arr[$filed] != '';
-            case 4:
-                return isset($arr[$filed]);
-            default:
-                return false;
-        }
+if (!function_exists('is_field_exists')) {
+    /**
+     * 判断数据是否为空
+     * @param $arr array 要检查的数组
+     * @param string $filed
+     * @param $type int 判断的类型.
+     *                  1=判断数据里面是否存在字段， 判断此字段不为空数据，判断此字段不为空字串
+     *                  2=判断数据里面是否存在字段， 判断此字段不为空数据
+     *                  3=判断数据里面是否存在字段，判断此字段不为空字串
+     *                  4=判断数据里面是否存在字段，判断此字段不为0
+     *                  5=判断数据里面是否存在字段
+     * @return bool 验证通过返回true,否则为false
+     */
+    function is_field_exists(array $arr,string $filed,int $type = 1):bool {
+        return match ($type) {
+            // 判断数据里面是否存在字段， 判断此字段不为空数据，判断此字段不为空字串
+            1 => isset($arr[$filed]) && !empty($arr[$filed]) && $arr[$filed] !== '',
+            // 判断数据里面是否存在字段， 判断此字段不为空数据
+            2 => isset($arr[$filed]) && !empty($arr[$filed]),
+            // 判断数据里面是否存在字段，判断此字段不为空字串
+            3 => isset($arr[$filed]) && $arr[$filed] !== '',
+            // 判断数据里面是否存在字段，判断此字段不为0
+            4 => isset($arr[$filed]) && $arr[$filed] !== 0,
+            // 判断数据里面是否存在字段
+            5 => isset($arr[$filed]),
+
+            default => false,
+        };
     }
 }
 
@@ -249,3 +252,29 @@ if (!function_exists('full_url')) {
 }
 
 
+if (!function_exists('message')) {
+    /**
+     * 公共方法返回数据结构
+     * @param string $msg 提示消息
+     * @param array $data 接口返回的数据
+     * @param int   $status 接口返回的状态码
+     * @param int   $code   辅助验证码，可以配合status一起演变成n种验证规则，默认0表示成功
+     */
+    function message(string $msg = '', array $data = [],int $status = 200, int $code = 0): \think\Response\Json
+    {
+        $returnData = [
+            'status'        => $status,
+            'code'          => $status == 200 ? 0 : 1,
+            'data'          => $data,
+            'message'       => $msg,
+            'time'          => time(),
+            'date'          => date('Y-m-d H:i:s',time())
+        ];
+
+        if (in_array($code,[0,1],true)) {
+            $returnData['code'] = $code;
+        }
+
+        return json($returnData,$status);
+    }
+}

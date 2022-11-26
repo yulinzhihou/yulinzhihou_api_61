@@ -49,7 +49,6 @@ class Login extends Base
 
     /**
      * 登录界面接口数据返回
-     * @return \think\response\Json
      */
     public function index():\think\response\Json
     {

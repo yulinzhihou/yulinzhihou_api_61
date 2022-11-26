@@ -52,13 +52,13 @@ class ApiLogCreate extends Migrator
             ->addIndex('code')
             ->addIndex('admin_id')
             ->addIndex('admin_name')
-            ->addIndex('code')
             ->addIndex('method')
             ->addIndex('title')
             ->addIndex('controller')
             ->addIndex('action')
             ->addIndex('ip')
             ->addIndex('create_time')
+            ->addIndex('waste_time')
             ->create();
     }
 }

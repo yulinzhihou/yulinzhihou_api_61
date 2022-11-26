@@ -6,4 +6,5 @@
 return [
     'v1/login/login',
     'v1/login/index',
+    'v1/index/index',
 ];

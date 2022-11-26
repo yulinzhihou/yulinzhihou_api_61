@@ -6,8 +6,8 @@ namespace app\admin\controller;
 use app\admin\model\ApiLog;
 use app\admin\model\ExceptionLog;
 use app\BaseController;
+use app\library\AsyncDoo;
 use app\library\Upload;
-use Baiy\ThinkAsync\Facade\Async;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -27,7 +27,6 @@ use think\exception\FileException;
 use think\facade\Db;
 use think\facade\Env;
 use think\facade\Filesystem;
-use think\facade\Log;
 use think\Response\Json;
 use WebPConvert\WebPConvert;
 
@@ -79,7 +78,7 @@ class Base extends BaseController
     /**
      * 分页数量
      */
-    protected int $size = 0;
+    protected int $size = 10;
 
     /**
      * 导入文件首行类型
@@ -90,15 +89,13 @@ class Base extends BaseController
 
     /**
      * 模型单例
-     * @var null
      */
-    protected $model = null;
+    protected mixed $model;
 
     /**
      * 验证器单例
-     * @var null
      */
-    protected $validate = null;
+    protected mixed $validate;
 
     /**
      * 返回给客户端请求的数据
@@ -109,7 +106,7 @@ class Base extends BaseController
     /**
      * http返回状态码，200表示请求成功，504表示 请求失败
      */
-    protected int $status = 504;
+    protected int $status = 200;
 
     /**
      * 提示信息
@@ -118,22 +115,14 @@ class Base extends BaseController
     protected string $msg = '';
 
     /**
-     * 返回给前端的状态码。0表示请求数据失败，1表示请求数据成功
+     * 返回给前端的状态码。0表示请求数据成功，其他值有对应含义，具体不做展开分析，可以和status配合进行一系列的返回情况的判断
      */
-    protected int $code = 1;
-
-    /**
-     * 反馈开发提示信息
-     */
-    protected array $sysMsg = [
-        'SUCCESS','ERROR'
-    ];
+    protected int $code = 0;
 
     /**
      * 定义JWT
-     * @var null
      */
-    protected $jwt = null;
+    protected Object $jwt;
 
     /**
      * 接收请求的数据
@@ -209,7 +198,7 @@ class Base extends BaseController
         if (isset($this->inputData['search']) && $this->inputData['search'] != '') {
             foreach ($this->inputData['search'] as $item) {
                 $search = json_decode($item,true);
-                if (isVarExists($search,'operator')) {
+                if (is_field_exists($search,'operator')) {
                     switch ($search['operator']) {
                         case '=':
                             $this->focus[$search['field']] = $search['val'];
@@ -248,7 +237,7 @@ class Base extends BaseController
         /**
          * 回写管理员信息
          */
-        $this->adminInfo = $this->request->user_info;
+        $this->adminInfo = $this->request->user_info ?? [];
         /**
          * 更新登录用户的token有效时间
          */
@@ -292,8 +281,13 @@ class Base extends BaseController
                 $this->msg  = $this->validate->getError();
             } else {
                 $err = explode('|',$this->validate->getError());
-                $this->code = $err[1];
-                $this->msg  = $err[0];
+                if (count($err) > 1) {
+                    $this->code = (int)$err[1];
+                    $this->msg  = $err[0];
+                } else {
+                    $this->code = -1;
+                    $this->msg  = 'error validate message';
+                }
             }
             return true;
         }
@@ -301,33 +295,11 @@ class Base extends BaseController
     }
 
     /**
-     * 公共方法返回数据结构
-     * @param bool $validate    表示是否是验证器异常信息
-     */
-    public function message(bool $validate = false): \think\Response\Json
-    {
-        $this->sysMsg[0] = $this->sysMsg[0]  ?? 'invalid';
-        $this->sysMsg[$this->code] = $this->sysMsg[$this->code] ?? 'validate invalid';
-
-        $data = [
-            'status'        => $this->status,
-            'code'          => $this->code,
-            'data'          => $this->returnData,
-            'message'       => $this->msg,
-            'type'          => $validate ? $this->sysMsg[0] : $this->sysMsg[$this->code],
-            'time'          => time(),
-            'date'          => date('Y-m-d H:i:s',time())
-        ];
-        return json($data);
-    }
-
-    /**
-     * 公共的返回数据接口
+     * 控制器返回方法
      * @param array|string $msg     返回的消息
      * @param array|bool $result    返回的结果
-     * @param bool $validate        是否是验证器
      */
-    public function jr($msg,$result = false,bool $validate = false): \think\Response\Json
+    public function jr(mixed $msg, mixed $result = false): \think\Response\Json
     {
         if (is_array($msg)) {
             if (count($msg) === 2) {
@@ -339,62 +311,97 @@ class Base extends BaseController
         } elseif (is_string($msg)) {
             $this->msg = $msg;
         } else {
-            $this->msg = 'error invalid';
+            $this->msg = $msg ? $msg : 'error invalid message';
         }
-        $this->code     = $result ? 0 : 1;
-        $this->status   = $result ? 200 : 504;
-        $this->returnData = !is_array($result) ? [] : $result;
+
+        // 增加自定义返回条件兼容
+        if ($this->status !== 200 && $this->status !== 504) {
+            // 增加自定义状态和code的定义
+            $this->returnData = is_bool($result) ? [] : $result;
+            $this->code = !empty($result) || is_bool($result) ? 0 : 1;
+
+        } elseif ($this->code !== 0 && $this->code !== 1) {
+            // 增加自定义状态和code的定义
+            $this->returnData = is_bool($result) ? [] : $result;
+            $this->status = !empty($result) || is_bool($result) ? 200 : 504;
+        } else {
+            $this->code = $result ? 0 : 1;
+            $this->status = $result ? 200 : 504;
+            $this->returnData = is_bool($result) ? [] : $result;
+        }
+
         // 存入接口请求日志
         $pathInfo = $this->request->pathinfo();
         $routeArr = explode('/',$pathInfo);
         if (count($routeArr) === 2) {
-            $version = $routeArr[count($routeArr) - 2]??'';
-            $controller = $routeArr[count($routeArr) - 1]??'';
+            $controller = array_pop($routeArr);
+            $version = array_pop($routeArr);
             // 取方法名，
-            switch ($this->request->method()) {
-                case 'POST' :
-                    $action = 'save';
-                    break;
-                case 'GET':
-                    $action = 'index';
-                    break;
-                case 'PUT':
-                    $action = 'read';
-                    break;
-                case 'DELETE':
-                    $action = 'delete';
-                    break;
-                default:
-                    $action = '';
-                    break;
-            }
+            $action = match ($this->request->method()) {
+                'POST' => 'save',
+                'GET' => 'index',
+                'PUT' => 'read',
+                'DELETE' => 'delete',
+                default => '',
+            };
         } else {
-            $version = $routeArr[count($routeArr) - 3]??'';
-            $controller = $routeArr[count($routeArr) - 2]??'';
-            $action = $routeArr[count($routeArr) - 1]??'';
+            $action = array_pop($routeArr);
+            $controller = array_pop($routeArr);
+            $version = array_pop($routeArr);
         }
 
         // 接口日志
         $logData = [
-            "admin_id"	=>	$this->adminInfo['id'] ?? 0,
-            "admin_name"=>	$this->adminInfo['username'] ?? '未登录',
-            "version"	=>	$version??'',
-            "method"	=>	$this->request->method(),
-            "code"	    =>	$result ? 200 : 504,
-            "url"	    =>	$this->request->url(true),
-            "params"	=>	json_encode($this->request->param()),
-            "user_agent"=>	$this->request->header('user_agent'),
-            "result"	=>  json_encode(!is_array($result) ? [] : $result),
-            "sql"	    =>	$this->sql,
-            "controller"=>	$controller??'',
-            "action"	=>	$action??'',
-            "ip"	    =>	$this->request->ip(),
+            "admin_id"	    =>	$this->adminInfo['id'] ?? 0,
+            "admin_name"    =>	$this->adminInfo['username'] ?? '未登录',
+            "user_agent"    =>	$this->request->header('user_agent'),
+            "app_name"	    =>	app('http')->getName(),
+            "method"	    =>	$this->request->method(),
+            "version"	    =>	$version??'v1',
+            "controller"    =>	$controller??'',
+            "action"	    =>	$action??'',
+            "url"	        =>	$this->request->url(true),
+            // 页面标题
+            "title"	        =>	'',
+            "code"	        =>	$result ? 200 : 504,
+            "params"	    =>	json_encode($this->request->param()),
+            "result"	    =>  json_encode(!is_array($result) ? [] : $result),
+            "sql"	        =>	$this->sql,
+            "ip"	        =>	$this->request->ip(),
             "waste_time"	=>	round(microtime(true) - $this->app->getBeginTime(),2),
+            "data_create_time"	=>	date('Y-m-d H:i:s',time()),
             "create_time"	=>	time(),
             "update_time"	=>	time()
         ];
-        ApiLog::create($logData);
-        return $this->message($validate);
+        if (!Env::get('app_debug')) {
+            AsyncDoo::asyncApiLog($logData);
+        } else {
+            ApiLog::create($logData);
+        }
+        // 全局返回
+        $data = [
+            'status'        => $this->status,
+            'code'          => $this->code,
+            'data'          => $this->returnData,
+            'message'       => $this->msg,
+            'time'          => time(),
+            'date'          => date('Y-m-d H:i:s',time())
+        ];
+
+        /**
+         * http 状态码
+         * 信息响应 (100–199)
+         * 成功响应 (200–299)
+         * 重定向消息 (300–399)
+         * 客户端错误响应 (400–499)
+         * 服务端错误响应 (500–599)
+         */
+        if ($this->status > 1000 || $this->status < 100) {
+            return json('严重错误：请填写正确状态码【信息响应 (100–199)，成功响应 (200–299)，重定向消息 (300–399)，客户端错误响应 (400–499)，服务端错误响应 (500–599)】',504);
+        } else {
+            return json($data,$this->status);
+        }
+
     }
 
     /**
@@ -403,17 +410,19 @@ class Base extends BaseController
     public function index() :\think\Response\Json
     {
         try {
+            // 增加插入式钩子，如果需要额外增手动增加字段到请求数据列表里面，使用params
             if (!empty($this->params)) {
                 $this->inputData = array_merge($this->inputData,$this->params);
             }
             //判断是否需要分页
-            if (isset($this->inputData['page']) && $this->inputData['page'] != 0) {
+            if (is_field_exists($this->inputData,'page',4)) {
                 $this->page = (int)$this->inputData['page'];
             }
-
-            if (isset($this->inputData['size']) && $this->inputData['size'] != 0) {
-                $this->size = (int)$this->inputData['size'];
+            //判断是否需要分页
+            if (is_field_exists($this->inputData,'size',4)) {
+                $this->page = (int)$this->inputData['size'];
             }
+
             // 列表输出字段
             if (isset($this->indexField) && !empty($this->indexField)) {
                 $this->field = $this->indexField;

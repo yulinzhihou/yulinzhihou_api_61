@@ -7,7 +7,6 @@ use think\facade\Cache;
 use think\facade\Config;
 use think\facade\Env;
 use think\facade\Session;
-use think\Request;
 use think\response\Json;
 
 /**
@@ -17,8 +16,6 @@ class checkSign
 {
     /**
      * 处理请求
-     * @param Request $request
-     * @param \Closure $next
      * @return mixed|void
      */
     public function handle(\think\Request $request, \Closure $next)
