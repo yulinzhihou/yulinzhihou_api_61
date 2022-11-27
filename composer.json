@@ -36,7 +36,8 @@
         "topthink/think-captcha": "^3.0",
         "topthink/think-ide-helper": "^1.0",
         "yunwuxin/think-mail": "^3.0",
-        "yulinzhihou/think-whoops": "^0.0.1"
+        "yulinzhihou/think-whoops": "^0.0.1",
+      "ext-curl": "*"
     },
     "require-dev": {
         "symfony/var-dumper": "^4.2",

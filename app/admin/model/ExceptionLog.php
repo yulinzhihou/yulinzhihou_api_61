@@ -30,12 +30,4 @@ class ExceptionLog extends Base
 		'create_time'	=>	'int',
 		'update_time'	=>	'int',
     ];
-
-    /**
-     * 构建数据
-     */
-    public static function buildExceptionData(array $data):void
-    {
-        self::create($data);
-    }
 }

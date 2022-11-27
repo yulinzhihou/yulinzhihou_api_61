@@ -3,7 +3,6 @@ declare (strict_types = 1);
 
 namespace app\admin\controller;
 
-use app\admin\exception\AdminErrorExceptionHandle;
 use app\admin\exception\AdminExceptionHandle;
 use app\admin\model\ApiLog;
 use app\admin\model\ExceptionLog;
@@ -80,7 +79,7 @@ class Base extends BaseController
     /**
      * 分页数量
      */
-    protected int $size = 10;
+    protected int $size = 0;
 
     /**
      * 导入文件首行类型
@@ -130,6 +129,11 @@ class Base extends BaseController
      * 接收请求的数据
      */
     protected array $inputData = [];
+
+    /**
+     * 接收请求的数据
+     */
+    protected array $validateData = [];
 
     /**
      * 请求的字段名
@@ -242,9 +246,10 @@ class Base extends BaseController
          * 回写管理员信息
          */
         $this->adminInfo = $this->request->user_info ?? [];
-        /**
-         * 更新登录用户的token有效时间
-         */
+        // 增加插入式钩子，如果需要额外增手动增加字段到请求数据列表里面，使用params
+        if (!empty($this->params)) {
+            $this->inputData = array_merge($this->inputData,$this->params);
+        }
     }
 
     /**
@@ -275,13 +280,13 @@ class Base extends BaseController
     /**
      * 公共方法验证器
      * @param string $sceneName 对应场景
-     * @param array $data   需要验证的数据，数组结构
+     * @param array $data 需要验证的数据，数组结构
      */
-    public function commonValidate(string $sceneName,array $data) :bool
+    public function commonValidate(string $sceneName,array $data) : string | \think\response\Json
     {
-        if(!$this->validate->scene($sceneName)->check($data)) {
+        if (!$this->validate->scene($sceneName)->check($data)) {
+            // 表示验证失败
             if (false === strrpos($this->validate->getError(),'|')) {
-                $this->code = -1;
                 $this->msg  = $this->validate->getError();
             } else {
                 $err = explode('|',$this->validate->getError());
@@ -293,9 +298,11 @@ class Base extends BaseController
                     $this->msg  = 'error validate message';
                 }
             }
-            return true;
+
+            return $this->jr($this->msg);
         }
-        return false;
+
+        return '';
     }
 
     /**
@@ -377,7 +384,7 @@ class Base extends BaseController
             "create_time"	=>	time(),
             "update_time"	=>	time()
         ];
-        if (!Env::get('app_debug')) {
+        if (!$this->app->isDebug()) {
             AsyncDoo::asyncApiLog($logData);
         } else {
             ApiLog::create($logData);
@@ -413,35 +420,28 @@ class Base extends BaseController
      */
     public function index() :\think\Response\Json
     {
-        try {
-            // 增加插入式钩子，如果需要额外增手动增加字段到请求数据列表里面，使用params
-            if (!empty($this->params)) {
-                $this->inputData = array_merge($this->inputData,$this->params);
-            }
-            //判断是否需要分页
-            if (is_field_exists($this->inputData,'page',4)) {
-                $this->page = (int)$this->inputData['page'];
-            }
-            //判断是否需要分页
-            if (is_field_exists($this->inputData,'size',4)) {
-                $this->page = (int)$this->inputData['size'];
-            }
-
-            // 列表输出字段
-            if (isset($this->indexField) && !empty($this->indexField)) {
-                $this->field = $this->indexField;
-            }
-
-            $result = $this->model->getIndexList($this->page,$this->size,$this->field,$this->vague,$this->focus,$this->order,$this->range);
-
-            $this->sql = $this->model->getLastSql();
-            //构建返回数据结构
-            return $this->jr('获取成功',!empty($result) ? $result : true);
-        } catch (\Exception $e) {
-            ExceptionLog::buildExceptionData($e,__LINE__,__FILE__,__CLASS__,__FUNCTION__,'controller',$this->sql,$this->adminInfo);
-            return $this->jr('详情数据异常，请查看异常日志或者日志文件进行修复');
+        //判断是否需要分页
+        if (is_field_exists($this->inputData,'page',4)) {
+            $this->page = (int)$this->inputData['page'];
+        }
+        //判断是否需要分页
+        if (is_field_exists($this->inputData,'size',4)) {
+            $this->size = (int)$this->inputData['size'];
         }
 
+        // 插入验证层进程数据校验
+        $this->commonValidate(__FUNCTION__,$this->validateData);
+
+        // 列表输出字段
+        if (isset($this->indexField) && !empty($this->indexField)) {
+            $this->field = $this->indexField;
+        }
+
+        $result = $this->model->getIndexList($this->page,$this->size,$this->field,$this->vague,$this->focus,$this->order,$this->range);
+
+        $this->sql = $this->model->getLastSql();
+        //构建返回数据结构
+        return $this->jr('获取成功',!empty($result) ? $result : true);
     }
 
     /**
@@ -449,30 +449,22 @@ class Base extends BaseController
      */
     public function read():\think\Response\Json
     {
-        try {
-            //前置拦截
-            if (!isset($this->inputData['id']) || (int)$this->inputData['id'] <= 0) {
-                return $this->jr('请输入需要获取的id值');
-            }
-            //额外增加请求参数
-            if (!empty($this->params)) {
-                $this->inputData = array_merge($this->inputData,$this->params);
-            }
-            if ($this->commonValidate(__FUNCTION__,$this->inputData)) {
-                return $this->message(true);
-            }
-            // 列表输出字段
-            if (isset($this->infoField) && !empty($this->infoField)) {
-                $this->field = $this->infoField;
-            }
-            $result = $this->model->getInfo((int)$this->inputData['id'],[],$this->field);
-            $this->sql = $this->model->getLastSql();
-            return $this->jr(['获取失败','获取成功'],$result);
-        } catch (\Exception $e) {
-            ExceptionLog::buildExceptionData($e,__LINE__,__FILE__,__CLASS__,__FUNCTION__,'controller',$this->sql,$this->adminInfo);
-            return $this->jr('详情数据异常，请查看异常日志或者日志文件进行修复');
+        //前置拦截
+        if (is_field_exists($this->inputData,'id',4)) {
+            return $this->jr('请输入需要获取的id值');
         }
 
+        //插入验证层进程数据校验
+        $this->commonValidate(__FUNCTION__,$this->validateData);
+
+        // 列表输出字段
+        if (isset($this->infoField) && !empty($this->infoField)) {
+            $this->field = $this->infoField;
+        }
+
+        $result = $this->model->getInfo($this->inputData,$this->field);
+        $this->sql = $this->model->getLastSql();
+        return $this->jr(['获取失败','获取成功'],$result);
     }
 
     /**
@@ -480,39 +472,28 @@ class Base extends BaseController
      */
     public function save():\think\Response
     {
-        try {
-            //前置拦截
-            if (empty($this->inputData)) {
-                return $this->jr('请检查提交过来的数据');
-            }
-            // 额外增加请求参数
-            if (!empty($this->params)) {
-                $this->inputData = array_merge($this->inputData,$this->params);
-            }
-            // 保存单独的请求参数
-            if (isset($this->addField) && !empty($this->addField)) {
-                $this->inputData = array_merge($this->inputData,$this->addField);
-            }
-            // 忽略指定忽略字段
-            if (!empty($this->addExpectField)) {
-                foreach ($this->addExpectField as $field) {
-                    if (isset($this->inputData[$field])) {
-                        unset($this->inputData[$field]);
-                    }
+        //前置拦截
+        if (empty($this->inputData)) {
+            return $this->jr('请检查提交过来的数据');
+        }
+        // 保存单独的请求参数
+        if (isset($this->addField) && !empty($this->addField)) {
+            $this->inputData = array_merge($this->inputData,$this->addField);
+        }
+        // 忽略指定忽略字段
+        if (!empty($this->addExpectField)) {
+            foreach ($this->addExpectField as $field) {
+                if (isset($this->inputData[$field])) {
+                    unset($this->inputData[$field]);
                 }
             }
-            // 验证器
-            if ($this->commonValidate(__FUNCTION__,$this->inputData)) {
-                return $this->message(true);
-            }
-
-            $result = $this->model->addData($this->inputData);
-            $this->sql = $this->model->getLastSql();
-            return $this->jr(['新增失败','新增成功'],$result);
-        } catch (\Exception $e) {
-            ExceptionLog::buildExceptionData($e,__LINE__,__FILE__,__CLASS__,__FUNCTION__,'controller',$this->sql,$this->adminInfo);
-            return $this->jr('新增异常，请查看异常日志或者日志文件进行修复');
         }
+        // 验证器
+        $this->commonValidate(__FUNCTION__,$this->validateData);
+
+        $result = $this->model->addData($this->inputData);
+        $this->sql = $this->model->getLastSql();
+        return $this->jr(['新增失败','新增成功'],$result);
 
     }
 
@@ -521,37 +502,28 @@ class Base extends BaseController
      */
     public function update():\think\Response\Json
     {
-        try {
-            //前置拦截
-            if (!isset($this->inputData['id']) || (int)$this->inputData['id'] <= 0) {
-                return $this->jr('请输入正确的需要修改的ID值');
-            }
-            //额外增加请求参数
-            if (!empty($this->params)) {
-                $this->inputData = array_merge($this->inputData,$this->params);
-            }
-            // 保存单独的请求参数
-            if (isset($this->editField) && !empty($this->editField)) {
-                $this->inputData = array_merge($this->inputData,$this->editField);
-            }
-            // 忽略指定忽略字段
-            if (!empty($this->editExpectField)) {
-                foreach ($this->editExpectField as $field) {
-                    if (isset($this->inputData[$field])) {
-                        unset($this->inputData[$field]);
-                    }
+        //前置拦截
+        if (is_field_exists($this->inputData,'id',4)) {
+            return $this->jr('请输入正确的需要【更新】的ID值');
+        }
+        // 保存单独的请求参数
+        if (isset($this->editField) && !empty($this->editField)) {
+            $this->inputData = array_merge($this->inputData,$this->editField);
+        }
+        // 忽略指定忽略字段
+        if (!empty($this->editExpectField)) {
+            foreach ($this->editExpectField as $field) {
+                if (isset($this->inputData[$field])) {
+                    unset($this->inputData[$field]);
                 }
             }
-            if ($this->commonValidate(__FUNCTION__,$this->inputData)) {
-                return $this->message(true);
-            }
-            $result = $this->model->editData($this->inputData);
-            $this->sql = $this->model->getLastSql();
-            return $this->jr(['修改失败','修改成功'],$result);
-        } catch (\Exception $e) {
-            ExceptionLog::buildExceptionData($e,__LINE__,__FILE__,__CLASS__,__FUNCTION__,'controller',$this->sql,$this->adminInfo);
-            return $this->jr('修改数据异常，请查看异常日志或者日志文件进行修复');
         }
+        // 插入验证器
+        $this->commonValidate(__FUNCTION__,$this->validateData);
+
+        $result = $this->model->editData($this->inputData);
+        $this->sql = $this->model->getLastSql();
+        return $this->jr(['修改失败','修改成功'],$result);
     }
 
     /**
@@ -559,31 +531,21 @@ class Base extends BaseController
      */
     public function delete():\think\Response\Json
     {
-        try {
-            //前置拦截
-            if (!isset($this->inputData['id']) || (int)$this->inputData['id'] <= 0) {
-                return $this->jr('请输入需要删除的ID值');
-            }
-            //额外增加请求参数
-            if (!empty($this->params)) {
-                $this->inputData = array_merge($this->inputData,$this->params);
-            }
-            if ($this->commonValidate(__FUNCTION__,$this->inputData)) {
-                return $this->message(true);
-            }
-            // 增加删除关联引用查询
-            if (!$this->isDeleteUsed) {
-                $result = $this->model->delData($this->inputData);
-            } else {
-                return $this->jr('删除失败！该数据被引用，不能删除，请解除引用关系再删除！');
-            }
-            $this->sql = $this->model->getLastSql();
-            return $this->jr(['删除失败','删除成功'],$result);
-        } catch (\Exception $e) {
-            ExceptionLog::buildExceptionData($e,__LINE__,__FILE__,__CLASS__,__FUNCTION__,'controller',$this->sql,$this->adminInfo);
-            return $this->jr('删除异常，请查看异常日志或者日志文件进行修复');
+        //前置拦截
+        if (is_field_exists($this->inputData,'id',4)) {
+            return $this->jr('请输入正确的需要【删除】的ID值');
         }
-
+        //额外增加请求参数
+        // 增加删除关联引用查询
+        $this->commonValidate(__FUNCTION__,$this->validateData);
+        // 查看关联条件
+        if (!$this->isDeleteUsed) {
+            $result = $this->model->delData($this->inputData);
+        } else {
+            return $this->jr('删除失败！该数据被引用，不能删除，请解除引用关系再删除！');
+        }
+        $this->sql = $this->model->getLastSql();
+        return $this->jr(['删除失败','删除成功'],$result);
     }
 
     /**
@@ -684,39 +646,30 @@ class Base extends BaseController
      */
     public function sortable():\think\Response
     {
-        try {
-            //前置拦截
-            if (empty($this->inputData)) {
-                return $this->jr('请检查提交过来的数据');
-            }
-            // 额外增加请求参数
-            if (!empty($this->params)) {
-                $this->inputData = array_merge($this->inputData,$this->params);
-            }
-            // 保存单独的请求参数
-            if (isset($this->editField) && !empty($this->editField)) {
-                $this->inputData = array_merge($this->inputData,$this->addField);
-            }
-            // 忽略指定忽略字段
-            if (!empty($this->editExpectField)) {
-                foreach ($this->editExpectField as $field) {
-                    if (isset($this->inputData[$field])) {
-                        unset($this->inputData[$field]);
-                    }
+        //前置拦截
+        if (empty($this->inputData)) {
+            return $this->jr('请检查提交过来的数据');
+        }
+
+        // 保存单独的请求参数
+        if (isset($this->editField) && !empty($this->editField)) {
+            $this->inputData = array_merge($this->inputData,$this->addField);
+        }
+        // 忽略指定忽略字段
+        if (!empty($this->editExpectField)) {
+            foreach ($this->editExpectField as $field) {
+                if (isset($this->inputData[$field])) {
+                    unset($this->inputData[$field]);
                 }
             }
-            // 验证器
-            if ($this->commonValidate(__FUNCTION__,$this->inputData)) {
-                return $this->message(true);
-            }
-
-            $result = $this->model->sortable($this->inputData);
-            $this->sql = $this->model->getLastSql();
-            return $this->jr(['更新排序失败','更新排序成功'],$result);
-        } catch (\Exception $e) {
-            ExceptionLog::buildExceptionData($e,__LINE__,__FILE__,__CLASS__,__FUNCTION__,'controller',$this->sql,$this->adminInfo);
-            return $this->jr('新增异常，请查看异常日志或者日志文件进行修复');
         }
+        // 验证器
+        $this->commonValidate(__FUNCTION__,$this->validateData);
+
+        $result = $this->model->sortable($this->inputData);
+
+        $this->sql = $this->model->getLastSql();
+        return $this->jr(['更新排序失败','更新排序成功'],$result);
 
     }
 
@@ -818,11 +771,11 @@ class Base extends BaseController
                 $temp = array_combine($fields, $values);
                 $temp1 = array_combine($fields, $coordinates);
                 foreach ($temp as $k => $v) {
+                    continue;
                     // 判断是否是图片
                     $fileName = '';
                     if ($this->importTitleField[$k] == 'image' || $this->importTitleField[$k] == 'cover') {
                         // 暂时不考虑图片
-                        continue;
                         // 执行保存图片
                         $imagePath = Config::get('filesystem.disks.images.url').DIRECTORY_SEPARATOR.date('Ymd',time()).DIRECTORY_SEPARATOR;
                         if (!is_dir(public_path().$imagePath)) {
@@ -886,16 +839,7 @@ class Base extends BaseController
         //批量新增
         try {
             $count = 0;
-            $failCount = 0;
-//            foreach ($insert as $item) {
-//                if ($this->commonValidate(__FUNCTION__,$item)) {
-//                    $failCount++;
-//                    continue;
-//                }
             $res = $this->model->save($insert[0]);
-//                $count++;
-//            }
-
             if (count($insert) > $count) {
                 $this->code = 0;
                 $this->status = 504;
@@ -905,22 +849,23 @@ class Base extends BaseController
                 $this->status = 200;
                 $this->msg = '总共【'.count($insert).'】，成功导入【'.$count.'】条记录,有【'.(count($insert) - $count).'】条记录未导入成功';
             }
-            return json($this->message());
+            return $this->jr($this->msg);
 
         } catch (PDOException $exception) {
             $this->msg = $exception->getMessage();
             if (preg_match("/.+Integrity constraint violation: 1062 Duplicate entry '(.+)' for key '(.+)'/is", $this->msg, $matches)) {
                 $this->msg = "导入失败，包含【{$matches[1]}】的记录已存在";
             }
-            $this->code = 0;
+            $this->code = 1;
             $this->status = 504;
-            return json($this->message());
+            return $this->jr($this->msg);
         } catch (\Exception $e) {
-            $this->code = 0;
+            $this->code = 1;
             $this->status = 504;
             $this->msg = $e->getMessage();
-            return json($this->message());
+            return $this->jr($this->msg);
         }
+
     }
 
     /**
@@ -1016,7 +961,7 @@ class Base extends BaseController
                 if (str_contains($sKey, ":")) {
                     $options['mergeCells'][$sKey] = $sKey;
                 }
-                if (isImage(public_path().$sItem) && file_exists(public_path().$sItem)) {
+                if (file_exists(public_path().$sItem)) {
                     $activeSheet->setCellValueExplicit($sKey, '', $pDataType);
                     $drawing = new Drawing();
                     $drawing->setName('Logo');
@@ -1132,8 +1077,7 @@ class Base extends BaseController
             ob_end_flush();
             exit;
         } catch (\Exception $e) {
-            $this->msg = $e->getMessage();
-            return json($this->message());
+            return $this->jr('error_file = '.$e->getFile().', error_line = '.$e->getLine().', error_msg = '.$e->getMessage());
         }
     }
 
@@ -1222,8 +1166,7 @@ class Base extends BaseController
             'Accept: application/json'
         ];
         $curl = curl_init();
-        $arr = [];
-        array_push($arr,$url);
+        $arr[] = $url;
         curl_setopt($curl, CURLOPT_URL, $url);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST,false);
@@ -1249,19 +1192,4 @@ class Base extends BaseController
         }
     }
 
-    /**
-     * 打印调试信息到日志
-     * @param $data
-     * @param string $string
-     */
-    public function dLog($data, string $string = 'debug'): void
-    {
-        $newData = [];
-        if (is_array($data)) {
-            $newData = json_encode($data);
-        } else {
-            $newData = $data;
-        }
-        \think\facade\Log::record($string. '==' . $newData);
-    }
 }
