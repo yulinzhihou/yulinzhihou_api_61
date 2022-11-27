@@ -3,6 +3,8 @@ declare (strict_types = 1);
 
 namespace app\admin\controller;
 
+use app\admin\exception\AdminErrorExceptionHandle;
+use app\admin\exception\AdminExceptionHandle;
 use app\admin\model\ApiLog;
 use app\admin\model\ExceptionLog;
 use app\BaseController;
@@ -184,6 +186,8 @@ class Base extends BaseController
      */
     public function initialize()
     {
+        // 手动注册全局异常类接管
+        $this->app->bind('think\exception\Handle', AdminExceptionHandle::class);
         /**
          * 全局接收请求的参数
          */

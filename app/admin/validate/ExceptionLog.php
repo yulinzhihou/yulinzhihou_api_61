@@ -14,7 +14,7 @@ class ExceptionLog extends Validate
      * @var array
      */
     protected $rule = [
-        'id|'	=>	['number','integer'],
+    		'id|'	=>	['number','integer'],
 		'admin_id|管理员ID'	=>	['egt:0','number','integer'],
 		'admin_name|管理员名称'	=>	['length:0,127'],
 		'app_name|应用名称'	=>	['length:0,127'],

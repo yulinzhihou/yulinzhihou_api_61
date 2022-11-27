@@ -50,11 +50,11 @@ class checkSign
         $whitelist = Config::get('whitelist');
         $route = strtolower(request()->pathinfo());
         //判断是否是 token 或者是 Session-Cookie 通信模式
-        if (Session::has('admin_login_info') && Session::get('admin_login_info') != '') {
+        if (Session::has('admin_user_info') && Session::get('admin_user_info') != '') {
             // 表示是Session-Cookie 通讯
-            $userInfo = Session::get('admin_login_info');
+            $userInfo = Session::get('admin_user_info');
             // 传递用户信息给请求
-            $request->user_info = $userInfo;
+            $request->admin_info = $userInfo;
         } elseif ($request->header('authorization') != '') {
             // Token方式
             // 前端请求携带的Token信息，根据请求头字段

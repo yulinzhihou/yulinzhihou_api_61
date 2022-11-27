@@ -23,7 +23,11 @@ class Index extends Base
      */
     public function index() :\think\Response\Json
     {
-        return $this->jr('测试消息');
+//        try {
+            return $this->jr();
+//        } catch (\app\ErrorHandle $e) {
+//            dd($e);
+//        }
     }
 
 }

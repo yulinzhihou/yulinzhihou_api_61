@@ -6,7 +6,7 @@ namespace app\admin\model;
 use app\admin\model\Base;
 
 /**
- * @mixin \think\Model
+ * 异常日志模型
  */
 class ExceptionLog extends Base
 {
@@ -29,48 +29,13 @@ class ExceptionLog extends Base
 		'data_create_time'	=>	'datetime',
 		'create_time'	=>	'int',
 		'update_time'	=>	'int',
-
     ];
-
 
     /**
      * 构建数据
-     * @param \Exception $e 异常类
-     * @param int $errorLine 报错文件行号
-     * @param string $errorFile 报错文件名
-     * @param string $class     报错文件类名
-     * @param string $action    报错文件方法名
-     * @param string $type      报错文件类型
-     * @param string $sql       报错文件执行的最后一条sql
-     * @param array $adminInfo  管理员数组
      */
-    public static function buildExceptionData(
-        \Exception $e,
-        int $errorLine,
-        string $errorFile,
-        string $class,
-        string $action,
-        string $type,
-        string $sql,
-        array $adminInfo = []
-    ):void {
-        $data = [
-            'line'      => $e->getLine(),
-            'file'       => $e->getFile(),
-            'message'   => $e->getMessage(),
-            'code'      => $e->getCode(),
-            'url'       => request()->url(true),
-            'params'    => json_encode(request()->param()),
-            'error_line'    => $errorLine,
-            'error_file'     => $errorFile,
-            'class'         => $class,
-            'action'        => $action,
-            'type'          => $type,
-            'sql'           => $sql,
-            'admin_id'      => $adminInfo['id']??0,
-            'admin_name'    => $adminInfo['nickname']??'未登录用户'
-        ];
-
+    public static function buildExceptionData(array $data):void
+    {
         self::create($data);
     }
 }
